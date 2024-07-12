@@ -317,7 +317,7 @@ class SftDataset(Dataset):
             input_ids, labels = self.tokenize_element(item["prompt"], item["winer_generation"], item["truncation_mode"])
             full_labels = [-100] * len(input_ids) + labels
             full_input_ids = input_ids + labels
-            self.data.append({"input_ids": torch.LongTensor(input_ids), "labels": torch.LongTensor(labels)})
+            self.data.append({"input_ids": torch.LongTensor(full_input_ids), "labels": torch.LongTensor(full_labels)})
         random.shuffle(self.data)
 
         
