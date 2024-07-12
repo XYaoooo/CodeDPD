@@ -73,6 +73,7 @@ def main(args):
         warmup_ratio=args.warmup_ratio,
         gradient_accumulation_steps=args.gradient_accumulation_steps,
         weight_decay=args.weight_decay,
+        gradient_checkpointing=args.gradient_checkpointing,
         bf16=args.bf16,
         max_seq_length=args.max_length,
         run_name="SFT_Exp",
@@ -101,14 +102,15 @@ if __name__ == "__main__":
         dataset_names: Optional[str] = field(default="hh", metadata={"help": "the dataset name"})
         max_prompt_length: Optional[int] = field(default=1024, metadata={"help": "the max prompt lengthg"})
         max_length: Optional[int] = field(default=2048, metadata={"help": "the max sequence length"})
-        batch_size: Optional[int] = field(default=1, metadata={"help": "bz"})
+        batch_size: Optional[int] = field(default=4, metadata={"help": "bz"})
         learning_rate: Optional[float] = field(default=1e-4, metadata={"help": "learning rate"})
         lr_scheduler_type: Optional[str] = field(default="cosine", metadata={"help": "learning rate decay"})
         warmup_ratio: Optional[float] = field(default=0.05, metadata={"help": "warm up"})
-        weight_decay: Optional[float] = field(default=0.05, metadata={"help": "weight decay"})
+        weight_decay: Optional[float] = field(default=0.01, metadata={"help": "weight decay"})
         seed: Optional[int] = field(default=42, metadata={"help": "random seed"})
         bf16: Optional[bool] = field(default=True, metadata={"help": "bf 16"})
         gradient_accumulation_steps: Optional[int] = field(default=1, metadata={"help": "gradient accumulation steps"})
+        gradient_checkpointing: Optional[bool] = field(default=True, metadata={"help": "None"})
         output_dir: Optional[str] = field(default="./checkpoints", metadata={"help": "directory"})
         num_train_epochs: Optional[float] = field(default=1, metadata={"help": "training epoches"})
         human_prefix: Optional[str] = field(default="\n<|user|>\n", metadata={"help": "mark of user talk"})
