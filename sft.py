@@ -1,7 +1,7 @@
 # Fine-Tune Llama2-7b on SE paired dataset
 import os
 from typing import Optional, Dict, Sequence
-from dataclasses import dataclass, field, asdict
+from dataclasses import dataclass, field
 import torch
 from accelerate import Accelerator
 from transformers import (
@@ -11,10 +11,7 @@ from transformers import (
     set_seed,
     TrainingArguments
 )
-
 from trl import SFTConfig, SFTTrainer
-from trl.import_utils import is_npu_available, is_xpu_available
-from trl.trainer import ConstantLengthDataset
 from dataset import SftDataset
 
 IGNORE_INDEX = -100
@@ -48,9 +45,10 @@ def main(args):
         trust_remote_code=True,
         use_auth_token=True,
     )
+    base_model.config.use_cache = False
     tokenizer = AutoTokenizer.from_pretrained(args.model_name, trust_remote_code=True)
     tokenizer.pad_token = tokenizer.eos_token
-    tokenizer.padding_side = "left"
+    tokenizer.padding_side = "right"
 
     train_dataset = SftDataset(
         dataset_names=args.dataset_names.split(","), 
@@ -66,6 +64,7 @@ def main(args):
         )
 
     training_args = SFTConfig(
+        num_train_epochs=args.num_train_epochs,
         output_dir=args.output_dir,
         dataloader_drop_last=False,
         per_device_train_batch_size=args.batch_size,
@@ -113,6 +112,7 @@ if __name__ == "__main__":
         gradient_accumulation_steps: Optional[int] = field(default=1, metadata={"help": "gradient accumulation steps"})
         gradient_checkpointing: Optional[bool] = field(default=True, metadata={"help": "None"})
         output_dir: Optional[str] = field(default="./SFT_checkpoints", metadata={"help": "directory"})
+        n_samples: Optional[int] = field(default=-1, metadata={"help": "number of sample; negative means all"})
         num_train_epochs: Optional[float] = field(default=1, metadata={"help": "training epoches"})
         human_prefix: Optional[str] = field(default="\n<|user|>\n", metadata={"help": "mark of user talk"})
         assistant_prefix: Optional[str] = field(default="\n<|assistant|>\n", metadata={"help": "mark of model talk"})

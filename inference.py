@@ -7,11 +7,22 @@ torch.backends.cuda.matmul.allow_tf32 = True
 import transformers
 from utils import *
 from tqdm import tqdm
+from functools import partial
 from datetime import datetime
+from datetime import timedelta
 from typing import Optional, Set
 from transformers import set_seed
 from torch.utils.data import DataLoader
+from dataclasses import dataclass, field
 from accelerate import Accelerator, InitProcessGroupKwargs
+from transformers import (
+    AutoModelForCausalLM,
+    AutoTokenizer,
+    HfArgumentParser,
+    set_seed,
+    TrainingArguments
+)
+from dataset import SftDataset
 
 
 def main(args):
@@ -49,18 +60,25 @@ def main(args):
     # print(f'loading pre-trained weights for policy at step {step} from {config.saved_policy} with metrics {json.dumps(metrics, indent=2)}')
     # policy.load_state_dict(state_dict['state'])
 
+    inf_config = {
+        "replace_with_kernel_inject": False,
+        "dtype": torch.bfloat16,
+        "enable_cuda_graph": False,
+        "tensor_parallel": {"tp_size": 8},
+        'min_out_tokens': 1,
+    }
     model = deepspeed.init_inference(model=policy, config=inf_config)
     all_policy_samples, all_prompts, all_chosen, all_original_prompts = [], [], [], []
     samples = []
-    for b_idx, batch in tqdm(enumerate(eval_iterator), desc="Generating"):
+    for b_idx, batch in tqdm(enumerate(eval_iterator), desc="Generating", total=len(eval_iterator)):
         with torch.no_grad():
             outputs = model.module.generate(
                     batch['prompt_input_ids'].to(torch.cuda.current_device()),
                     attention_mask=batch['prompt_attention_mask'].to(torch.cuda.current_device()),
-                    max_length=config.model.max_length,
+                    max_length=args.max_length,
                     do_sample=True,
                     pad_token_id=tokenizer.pad_token_id,
-                    top_p=config.top_p,
+                    top_p=args.top_p,
                 )
             if accelerator.is_main_process:
                 policy_samples = tokenizer.batch_decode(outputs, skip_special_tokens=True)
@@ -79,11 +97,11 @@ def main(args):
                         'original_prompt' : all_original_prompts[i],
                     })
                     
-    if accelerator.is_main_process: 
-        fn = os.path.join(config.samples_dir, f'{config.exp_name}.json')
+    if accelerator.is_main_process:
+        os.makedirs(args.output_dir, exist_ok=True) 
+        fn = os.path.join(args.output_dir, f'{args.exp_name}.json')
         json.dump({
             'sampled_at' : str(datetime.now()),
-            'config' : OmegaConf.to_container(config, resolve=True),
             'samples' : samples,
         }, open(fn, 'w'), indent=2)
 
@@ -98,8 +116,10 @@ if __name__ == '__main__':
         batch_size: Optional[int] = field(default=4, metadata={"help": "bz"})
         seed: Optional[int] = field(default=42, metadata={"help": "random seed"})
         bf16: Optional[bool] = field(default=True, metadata={"help": "bf 16"})
-        n_samples: Optional[int] = field(default=1000, metadata={"help": "Number of samples; negative means all"})
+        n_samples: Optional[int] = field(default=1, metadata={"help": "Number of samples; negative means all"})
+        top_p: Optional[float] = field(default=0.95, metadata={"help": "top p"})
         output_dir: Optional[str] = field(default="./samples", metadata={"help": "directory"})
+        exp_name: Optional[str] = field(default="sft", metadata={"help": "file name"})
         human_prefix: Optional[str] = field(default="\n<|user|>\n", metadata={"help": "mark of user talk"})
         assistant_prefix: Optional[str] = field(default="\n<|assistant|>\n", metadata={"help": "mark of model talk"})
         human_suffix: Optional[str] = field(default="", metadata={"help": "mark of user talk end"})

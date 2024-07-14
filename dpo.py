@@ -50,6 +50,7 @@ def main(args):
         )
 
     training_args = DPOConfig(
+        num_train_epochs=args.num_train_epochs,
         output_dir=args.output_dir,
         dataloader_drop_last=False,
         per_device_train_batch_size=args.batch_size,
@@ -105,6 +106,7 @@ if __name__ == "__main__":
         gradient_accumulation_steps: Optional[int] = field(default=1, metadata={"help": "gradient accumulation steps"})
         gradient_checkpointing: Optional[bool] = field(default=True, metadata={"help": "None"})
         output_dir: Optional[str] = field(default="./DPO_checkpoints", metadata={"help": "directory"})
+        n_samples: Optional[int] = field(default=-1, metadata={"help": "number of sample; negative means all"})
         num_train_epochs: Optional[float] = field(default=1, metadata={"help": "training epoches"})
         human_prefix: Optional[str] = field(default="\n<|user|>\n", metadata={"help": "mark of user talk"})
         assistant_prefix: Optional[str] = field(default="\n<|assistant|>\n", metadata={"help": "mark of model talk"})
