@@ -73,7 +73,9 @@ def main(args):
         args=training_args,
         beta=args.beta,
         train_dataset=train_dataset,
-        tokenizer=tokenizer
+        tokenizer=tokenizer,
+        max_prompt_length=args.max_prompt_length,
+        max_length=args.max_length,
     )
 
     trainer.train()
