@@ -367,6 +367,36 @@ class SftDataset(Dataset):
     def __getitem__(self, idx):
         return self.data[idx]
 
+class DpoDataset(Dataset):
+    def __init__(self, dataset_names, split, n_samples, human_prefix, human_suffix, assistant_prefix, assistant_suffix):
+
+        self.human_prefix = human_prefix
+        self.human_suffix = human_suffix
+        self.assistant_prefix = assistant_prefix
+        self.assistant_suffix = assistant_suffix
+        self.n_samples = n_samples
+
+        self.raw_data = []
+        for name in dataset_names:
+            temp_data = globals()[f"get_{name}"](split, human_prefix, human_suffix, assistant_prefix, assistant_suffix)
+            self.raw_data.extend(temp_data)
+        random.shuffle(self.raw_data)
+        
+        self.truncation_mode=self.raw_data[0]["truncation_mode"]
+
+        self.data = []
+        if n_samples > 0:
+            self.raw_data = self.raw_data[:self.n_samples]
+        for item in self.raw_data:
+            self.data.append({"prompt": item["prompt"], "chosen": item["winer_generation"], "rejected": item["loser_generation"]})
+
+
+    def __len__(self):
+        return len(self.data)
+    
+    def __getitem__(self, idx):
+        return self.data[idx]
+
 # Test
 if __name__ == "__main__":
     from transformers import AutoTokenizer
