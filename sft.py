@@ -50,14 +50,15 @@ def main(args):
     )
     tokenizer = AutoTokenizer.from_pretrained(args.model_name, trust_remote_code=True)
     tokenizer.pad_token = tokenizer.eos_token
-    tokenizer.padding_side = "right"  # Fix weird overflow issue with fp16 training
+    tokenizer.padding_side = "left"
 
     train_dataset = SftDataset(
         dataset_names=args.dataset_names.split(","), 
         split="train", 
         tokenizer=tokenizer, 
         max_length=args.max_length, 
-        max_prompt_length=args.max_prompt_length, 
+        max_prompt_length=args.max_prompt_length,
+        n_samples = args.n_samples, 
         human_prefix=args.human_prefix, 
         human_suffix=args.human_suffix, 
         assistant_prefix=args.assistant_prefix, 
@@ -103,10 +104,10 @@ if __name__ == "__main__":
         max_prompt_length: Optional[int] = field(default=1024, metadata={"help": "the max prompt lengthg"})
         max_length: Optional[int] = field(default=2048, metadata={"help": "the max sequence length"})
         batch_size: Optional[int] = field(default=4, metadata={"help": "bz"})
-        learning_rate: Optional[float] = field(default=1e-4, metadata={"help": "learning rate"})
+        learning_rate: Optional[float] = field(default=1e-5, metadata={"help": "learning rate"})
         lr_scheduler_type: Optional[str] = field(default="cosine", metadata={"help": "learning rate decay"})
-        warmup_ratio: Optional[float] = field(default=0.05, metadata={"help": "warm up"})
-        weight_decay: Optional[float] = field(default=0.01, metadata={"help": "weight decay"})
+        warmup_ratio: Optional[float] = field(default=0.01, metadata={"help": "warm up"})
+        weight_decay: Optional[float] = field(default=0.00, metadata={"help": "weight decay"})
         seed: Optional[int] = field(default=42, metadata={"help": "random seed"})
         bf16: Optional[bool] = field(default=True, metadata={"help": "bf 16"})
         gradient_accumulation_steps: Optional[int] = field(default=1, metadata={"help": "gradient accumulation steps"})

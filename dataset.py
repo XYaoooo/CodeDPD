@@ -86,6 +86,7 @@ def get_shp(split: str, human_prefix: str, human_suffix: str, assistant_prefix: 
         if score_ratio < MIN_SCORE_RATIO and split == 'train':
             continue
 
+        item["original_prompt"] = prompt
         item["prompt"] = remove_extra_spaces(prompt)
         if row['labels'] == 1:
             item["winer_generation"], item["loser_generation"] = remove_extra_spaces(responses[0]), remove_extra_spaces(responses[1])
@@ -164,6 +165,7 @@ def get_hh(split: str, human_prefix: str, human_suffix: str, assistant_prefix: s
         prompt = ''.join(chunks)
         responses = [chosen + assistant_suffix, rejected + assistant_suffix]
 
+        item["original_prompt"] = prompt
         item["prompt"] = remove_extra_spaces(prompt)
         item["winer_generation"], item["loser_generation"] = remove_extra_spaces(responses[0]), remove_extra_spaces(responses[1])
         item["truncation_mode"] = 'keep_end'
@@ -247,6 +249,7 @@ def get_oasst(split: str, human_prefix: str, human_suffix: str, assistant_prefix
         prompt = turn_path_to_prompt(path_to_root[1:])
         responses = [next_best_sibling['text'] + assistant_suffix, row['text'] + assistant_suffix]
        
+        item["original_prompt"] = prompt
         item["prompt"] = remove_extra_spaces(prompt)
         item["winer_generation"], item["loser_generation"] = remove_extra_spaces(responses[0]), remove_extra_spaces(responses[1])
         item["truncation_mode"] = 'keep_end'
@@ -288,6 +291,7 @@ def get_ultrabin(split: str, human_prefix: str, human_suffix: str, assistant_pre
         prompt = human_prefix + row['prompt'] + human_suffix + assistant_prefix
         responses = [row['chosen'][-1]['content'] + assistant_suffix, row['rejected'][-1]['content'] + assistant_suffix]
 
+        item["original_prompt"] = prompt
         item["prompt"] = remove_extra_spaces(prompt)
         item["winer_generation"], item["loser_generation"] = remove_extra_spaces(responses[0]), remove_extra_spaces(responses[1])
         item["truncation_mode"] = 'keep_start'
@@ -298,7 +302,7 @@ def get_ultrabin(split: str, human_prefix: str, human_suffix: str, assistant_pre
     return res
 
 class SftDataset(Dataset):
-    def __init__(self, dataset_names, split, tokenizer, max_length, max_prompt_length, human_prefix, human_suffix, assistant_prefix, assistant_suffix):
+    def __init__(self, dataset_names, split, tokenizer, max_length, max_prompt_length, n_samples, human_prefix, human_suffix, assistant_prefix, assistant_suffix):
         self.tokenizer = tokenizer
         self.max_length = max_length
         self.max_prompt_length = max_prompt_length
@@ -306,21 +310,22 @@ class SftDataset(Dataset):
         self.human_suffix = human_suffix
         self.assistant_prefix = assistant_prefix
         self.assistant_suffix = assistant_suffix
+        self.n_samples = n_samples
 
         self.raw_data = []
         for name in dataset_names:
             temp_data = globals()[f"get_{name}"](split, human_prefix, human_suffix, assistant_prefix, assistant_suffix)
             self.raw_data.extend(temp_data)
+        random.shuffle(self.raw_data)
 
         self.data = []
+        if n_samples > 0:
+            self.raw_data = self.raw_data[:self.n_samples]
         for item in self.raw_data:
-            input_ids, labels = self.tokenize_element(item["prompt"], item["winer_generation"], item["truncation_mode"])
-            full_labels = [-100] * len(input_ids) + labels
-            full_input_ids = input_ids + labels
-            self.data.append({"input_ids": torch.LongTensor(full_input_ids), "labels": torch.LongTensor(full_labels)})
-        random.shuffle(self.data)
-
-        
+            prompt_input_ids, generation_labels = self.tokenize_element(item["prompt"], item["winer_generation"], item["truncation_mode"])
+            full_labels = [-100] * len(prompt_input_ids) + generation_labels
+            full_input_ids = prompt_input_ids + generation_labels
+            self.data.append({"input_ids": torch.LongTensor(full_input_ids), "labels": torch.LongTensor(full_labels), "prompt_input_ids": prompt_input_ids, "prompt": item["prompt"], "winer_generation": item["winer_generation"], "original_prompt": item["original_prompt"]})
 
     
     def tokenize_element(self, prompt: str, generation: str, truncation_mode: str):
