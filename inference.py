@@ -31,6 +31,7 @@ def main(args):
     policy = AutoModelForCausalLM.from_pretrained(
         args.model_name,
         torch_dtype=torch.bfloat16,
+        use_flash_attention_2=args.use_flash_attention,
         trust_remote_code=True,
         use_auth_token=True,
     )
@@ -110,6 +111,7 @@ if __name__ == '__main__':
     @dataclass
     class ScriptArguments:
         model_name: Optional[str] = field(default="meta-llama/Llama-2-7b-hf", metadata={"help": "the model name"})
+        use_flash_attention: Optional[bool] = field(default=True, metadata={"help": "flash attn"})
         dataset_names: Optional[str] = field(default="hh", metadata={"help": "the dataset name"})
         max_prompt_length: Optional[int] = field(default=1024, metadata={"help": "the max prompt lengthg"})
         max_length: Optional[int] = field(default=2048, metadata={"help": "the max sequence length"})

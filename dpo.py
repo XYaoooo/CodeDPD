@@ -21,8 +21,9 @@ def main(args):
     set_seed(args.seed)
 
     policy_model = AutoModelForCausalLM.from_pretrained(
-        args.model_name,
+        "./DPO_checkpoints",
         torch_dtype=torch.bfloat16,
+        use_flash_attention_2=args.use_flash_attention,
         trust_remote_code=True,
         use_auth_token=True,
     )
@@ -30,6 +31,7 @@ def main(args):
     ref_model = AutoModelForCausalLM.from_pretrained(
         args.ref_model_name,
         torch_dtype=torch.bfloat16,
+        use_flash_attention_2=args.use_flash_attention,
         trust_remote_code=True,
         use_auth_token=True,
     )
@@ -81,8 +83,8 @@ def main(args):
     trainer.train()
     trainer.save_model(args.output_dir)
 
-    output_dir = os.path.join(args.output_dir, "final_checkpoint")
-    trainer.model.save_pretrained(output_dir)
+    # output_dir = os.path.join(args.output_dir, "final_checkpoint")
+    # trainer.model.save_pretrained(output_dir)
 
 
 
@@ -91,10 +93,11 @@ if __name__ == "__main__":
     class ScriptArguments:
         model_name: Optional[str] = field(default="meta-llama/Llama-2-7b-hf", metadata={"help": "the policy model name"})
         ref_model_name: Optional[str] = field(default="meta-llama/Llama-2-7b-hf", metadata={"help": "the reference model name"})
+        use_flash_attention: Optional[bool] = field(default=False, metadata={"help": "flash attn"})
         dataset_names: Optional[str] = field(default="hh", metadata={"help": "the dataset name"})
         max_prompt_length: Optional[int] = field(default=1024, metadata={"help": "the max prompt lengthg"})
         max_length: Optional[int] = field(default=2048, metadata={"help": "the max sequence length"})
-        batch_size: Optional[int] = field(default=2, metadata={"help": "bz"})
+        batch_size: Optional[int] = field(default=4, metadata={"help": "bz"})
         learning_rate: Optional[float] = field(default=1e-5, metadata={"help": "learning rate"})
         beta: Optional[float] = field(default=0.1, metadata={"help": "beta"})
         lr_scheduler_type: Optional[str] = field(default="cosine", metadata={"help": "learning rate decay"})
