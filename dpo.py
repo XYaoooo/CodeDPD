@@ -1,19 +1,15 @@
 # Fine-Tune Llama2-7b on SE paired dataset
 import os
 import torch
-from accelerate import Accelerator
-from typing import Optional, Dict, Sequence
+from typing import Optional, Dict
 from dataclasses import dataclass, field, asdict
 from transformers import (
     AutoModelForCausalLM,
     AutoTokenizer,
     HfArgumentParser,
     set_seed,
-    TrainingArguments
 )
 from trl import DPOConfig, DPOTrainer
-from trl.import_utils import is_npu_available, is_xpu_available
-from trl.trainer import ConstantLengthDataset
 from dataset import *
 
 
@@ -21,7 +17,7 @@ def main(args):
     set_seed(args.seed)
 
     policy_model = AutoModelForCausalLM.from_pretrained(
-        "./DPO_checkpoints",
+        args.model_name,
         torch_dtype=torch.bfloat16,
         use_flash_attention_2=args.use_flash_attention,
         trust_remote_code=True,
@@ -52,6 +48,7 @@ def main(args):
 
     training_args = DPOConfig(
         num_train_epochs=args.num_train_epochs,
+        save_strategy=args.save_strategy,
         output_dir=args.output_dir,
         dataloader_drop_last=False,
         per_device_train_batch_size=args.batch_size,
@@ -68,7 +65,7 @@ def main(args):
         truncation_mode=truncation_mode,
         remove_unused_columns=False,
         run_name="DPO_Exp",
-        report_to="none"
+        report_to=args.report_to
     )
 
     trainer = DPOTrainer(
@@ -109,7 +106,9 @@ if __name__ == "__main__":
         gradient_checkpointing: Optional[bool] = field(default=True, metadata={"help": "None"})
         gradient_checkpointing_use_reetrant: Optional[bool] = field(default=False, metadata={"help": "None"})
         n_samples: Optional[int] = field(default=100, metadata={"help": "number of sample; negative means all"})
+        save_strategy: Optional[str] = field(default="no", metadata={"help": "no save during train"})
         output_dir: Optional[str] = field(default="./DPO_checkpoints", metadata={"help": "directory"})
+        report_to: Optional[str] = field(default="none", metadata={"help": "wandb, none"})
         num_train_epochs: Optional[float] = field(default=1, metadata={"help": "training epoches"})
         human_prefix: Optional[str] = field(default="\n<|user|>\n", metadata={"help": "mark of user talk"})
         assistant_prefix: Optional[str] = field(default="\n<|assistant|>\n", metadata={"help": "mark of model talk"})

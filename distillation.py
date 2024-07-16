@@ -1,60 +1,45 @@
 # Fine-Tune Llama2-7b on SE paired dataset
 import os
-from typing import Optional, Dict, Sequence
-from dataclasses import dataclass, field
 import torch
+from typing import Optional, Dict
+from dataclasses import dataclass, field, asdict
 from transformers import (
     AutoModelForCausalLM,
     AutoTokenizer,
     HfArgumentParser,
-    set_seed
+    set_seed,
 )
-from trl import SFTConfig, SFTTrainer
-from dataset import SftDataset
+from distillation_trainer import DistTrainer
+from distillation_config import DistConfig
+from dataset import *
 
-IGNORE_INDEX = -100
-
-@dataclass
-class DataCollatorForSupervisedDataset(object):
-    """Collate examples for supervised fine-tuning."""
-
-    tokenizer: AutoTokenizer
-
-    def __call__(self, instances: Sequence[Dict]) -> Dict[str, torch.Tensor]:
-        input_ids, labels = tuple([instance[key] for instance in instances] for key in ("input_ids", "labels"))
-        input_ids = [torch.tensor(x) for x in input_ids]
-        input_ids = torch.nn.utils.rnn.pad_sequence(
-            input_ids, batch_first=True, padding_value=self.tokenizer.pad_token_id
-        )
-        labels = [torch.tensor(x) for x in labels]
-        labels = torch.nn.utils.rnn.pad_sequence(labels, batch_first=True, padding_value=IGNORE_INDEX)
-        return dict(
-            input_ids=input_ids,
-            labels=labels,
-            attention_mask=input_ids.ne(self.tokenizer.pad_token_id),
-        )
 
 def main(args):
     set_seed(args.seed)
 
-    base_model = AutoModelForCausalLM.from_pretrained(
+    policy_model = AutoModelForCausalLM.from_pretrained(
         args.model_name,
         torch_dtype=torch.bfloat16,
         use_flash_attention_2=args.use_flash_attention,
         trust_remote_code=True,
         use_auth_token=True,
     )
-    base_model.config.use_cache = False
+
+    ref_model = AutoModelForCausalLM.from_pretrained(
+        args.ref_model_name,
+        torch_dtype=torch.bfloat16,
+        use_flash_attention_2=args.use_flash_attention,
+        trust_remote_code=True,
+        use_auth_token=True,
+    )
+    ref_model.eval()
+
     tokenizer = AutoTokenizer.from_pretrained(args.model_name, trust_remote_code=True)
     tokenizer.pad_token = tokenizer.eos_token
-    tokenizer.padding_side = "right"
+    tokenizer.padding_side = "left"
 
-    train_dataset = SftDataset(
-        dataset_names=args.dataset_names.split(","), 
+    train_dataset, truncation_mode = get_dpodataset(dataset_names=args.dataset_names.split(","),
         split="train", 
-        tokenizer=tokenizer, 
-        max_length=args.max_length, 
-        max_prompt_length=args.max_prompt_length,
         n_samples = args.n_samples, 
         human_prefix=args.human_prefix, 
         human_suffix=args.human_suffix, 
@@ -62,7 +47,7 @@ def main(args):
         assistant_suffix=args.assistant_suffix 
         )
 
-    training_args = SFTConfig(
+    training_args = DistConfig(
         num_train_epochs=args.num_train_epochs,
         save_strategy=args.save_strategy,
         output_dir=args.output_dir,
@@ -74,19 +59,22 @@ def main(args):
         gradient_accumulation_steps=args.gradient_accumulation_steps,
         weight_decay=args.weight_decay,
         gradient_checkpointing=args.gradient_checkpointing,
+        gradient_checkpointing_kwargs=dict(use_reentrant=args.gradient_checkpointing_use_reetrant),
         bf16=args.bf16,
-        max_seq_length=args.max_length,
-        run_name="SFT_Exp",
-        report_to=args.report_to,
+        max_prompt_length=args.max_prompt_length,
+        max_length=args.max_length,
+        truncation_mode=truncation_mode,
+        remove_unused_columns=False,
+        run_name="Dist_Exp",
+        report_to=args.report_to
     )
-    data_collator = DataCollatorForSupervisedDataset(tokenizer=tokenizer)
-    trainer = SFTTrainer(
-        model=base_model,
+
+    trainer = DistTrainer(
+        policy_model,
+        ref_model=ref_model,
         args=training_args,
         train_dataset=train_dataset,
         tokenizer=tokenizer,
-        data_collator=data_collator,
-        
     )
 
     trainer.train()
@@ -95,11 +83,14 @@ def main(args):
     # output_dir = os.path.join(args.output_dir, "final_checkpoint")
     # trainer.model.save_pretrained(output_dir)
 
+
+
 if __name__ == "__main__":
     @dataclass
     class ScriptArguments:
-        model_name: Optional[str] = field(default="meta-llama/Llama-2-7b-hf", metadata={"help": "the model name"})
-        use_flash_attention: Optional[bool] = field(default=True, metadata={"help": "flash attn"})
+        model_name: Optional[str] = field(default="meta-llama/Llama-2-7b-hf", metadata={"help": "the policy model name"})
+        ref_model_name: Optional[str] = field(default="meta-llama/Llama-2-7b-hf", metadata={"help": "the reference model name"})
+        use_flash_attention: Optional[bool] = field(default=False, metadata={"help": "flash attn"})
         dataset_names: Optional[str] = field(default="hh", metadata={"help": "the dataset name"})
         max_prompt_length: Optional[int] = field(default=1024, metadata={"help": "the max prompt lengthg"})
         max_length: Optional[int] = field(default=2048, metadata={"help": "the max sequence length"})
@@ -112,9 +103,10 @@ if __name__ == "__main__":
         bf16: Optional[bool] = field(default=True, metadata={"help": "bf 16"})
         gradient_accumulation_steps: Optional[int] = field(default=1, metadata={"help": "gradient accumulation steps"})
         gradient_checkpointing: Optional[bool] = field(default=True, metadata={"help": "None"})
-        output_dir: Optional[str] = field(default="./SFT_checkpoints", metadata={"help": "directory"})
-        n_samples: Optional[int] = field(default=-1, metadata={"help": "number of sample; negative means all"})
+        gradient_checkpointing_use_reetrant: Optional[bool] = field(default=False, metadata={"help": "None"})
+        n_samples: Optional[int] = field(default=100, metadata={"help": "number of sample; negative means all"})
         save_strategy: Optional[str] = field(default="no", metadata={"help": "no save during train"})
+        output_dir: Optional[str] = field(default="./Dist_checkpoints", metadata={"help": "directory"})
         report_to: Optional[str] = field(default="none", metadata={"help": "wandb, none"})
         num_train_epochs: Optional[float] = field(default=1, metadata={"help": "training epoches"})
         human_prefix: Optional[str] = field(default="\n<|user|>\n", metadata={"help": "mark of user talk"})

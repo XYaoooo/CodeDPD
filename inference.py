@@ -110,7 +110,7 @@ if __name__ == '__main__':
 
     @dataclass
     class ScriptArguments:
-        model_name: Optional[str] = field(default="meta-llama/Llama-2-7b-hf", metadata={"help": "the model name"})
+        model_name: Optional[str] = field(default="/home/xiaoyao/CodeDPD/SFT_checkpoints", metadata={"help": "the model name"})
         use_flash_attention: Optional[bool] = field(default=True, metadata={"help": "flash attn"})
         dataset_names: Optional[str] = field(default="hh", metadata={"help": "the dataset name"})
         max_prompt_length: Optional[int] = field(default=1024, metadata={"help": "the max prompt lengthg"})
@@ -118,7 +118,7 @@ if __name__ == '__main__':
         batch_size: Optional[int] = field(default=4, metadata={"help": "bz"})
         seed: Optional[int] = field(default=42, metadata={"help": "random seed"})
         bf16: Optional[bool] = field(default=True, metadata={"help": "bf 16"})
-        n_samples: Optional[int] = field(default=1, metadata={"help": "Number of samples; negative means all"})
+        n_samples: Optional[int] = field(default=10, metadata={"help": "Number of samples; negative means all"})
         top_p: Optional[float] = field(default=0.95, metadata={"help": "top p"})
         output_dir: Optional[str] = field(default="./samples", metadata={"help": "directory"})
         exp_name: Optional[str] = field(default="sft", metadata={"help": "file name"})
