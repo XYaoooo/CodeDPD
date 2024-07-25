@@ -357,6 +357,14 @@ class SftDataset(Dataset):
         # then truncate generation if needed
         if (len(prompt_token_ids) + len(generation_token_ids) > self.max_length):
             generation_token_ids = generation_token_ids[:(self.max_length - len(prompt_token_ids))]
+
+
+        # reconstitute the prompt and generation
+        prompt = self.tokenizer.decode(prompt_token_ids, skip_special_tokens=True)
+        generation = self.tokenizer.decode(generation_token_ids, skip_special_tokens=True) + ' ' + self.tokenizer.eos_token
+
+        prompt_token_ids = self.tokenizer.encode(prompt)
+        generation_token_ids = self.tokenizer.encode(generation)
   
         return prompt_token_ids, generation_token_ids
 
@@ -385,37 +393,6 @@ def get_dpodataset(dataset_names, split, n_samples, human_prefix, human_suffix, 
 
         return datasets.Dataset.from_list(data), truncation_mode
 
-# class DpoDataset(datasets.Dataset):
-#     def __init__(self, dataset_names, split, n_samples, human_prefix, human_suffix, assistant_prefix, assistant_suffix):
-
-#         self.human_prefix = human_prefix
-#         self.human_suffix = human_suffix
-#         self.assistant_prefix = assistant_prefix
-#         self.assistant_suffix = assistant_suffix
-#         self.n_samples = n_samples
-
-#         self.raw_data = []
-#         for name in dataset_names:
-#             temp_data = globals()[f"get_{name}"](split, human_prefix, human_suffix, assistant_prefix, assistant_suffix)
-#             self.raw_data.extend(temp_data)
-#         random.shuffle(self.raw_data)
-        
-#         self.truncation_mode=self.raw_data[0]["truncation_mode"]
-
-#         self.data = []
-#         if n_samples > 0:
-#             self.raw_data = self.raw_data[:self.n_samples]
-#         for item in self.raw_data:
-#             self.data.append({"prompt": item["prompt"], "chosen": item["winer_generation"], "rejected": item["loser_generation"]})
-
-
-#     def __len__(self):
-#         return len(self.data)
-    
-#     def __getitem__(self, idx):
-#         return self.data[idx]
-
-# Test
 if __name__ == "__main__":
     from transformers import AutoTokenizer
     tokenizer = AutoTokenizer.from_pretrained("huggyllama/llama-7b")
